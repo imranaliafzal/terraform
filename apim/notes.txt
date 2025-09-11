@@ -1,0 +1,55 @@
+Before APIM
+===========
+    	⁃	az login
+    	⁃	az account set --subscription "<SUBSCRIPTION_ID>"
+    	⁃	az ad sp create-for-rbac --role="Contributor" --scopes="/subscriptions/<SUBSCRIPTION_ID>"
+    	⁃
+    	⁃	>>
+    	⁃	Creating 'Contributor' role assignment under scope '/subscriptions/<SUBSCRIPTION_ID>'
+    	⁃	The output includes credentials that you must protect. Be sure that you do not include these credentials in your code or check the credentials into your source control. For more information, see https://aka.ms/azadsp-cli
+    	⁃	{
+    	⁃	  "appId": "APP_ID",
+    	⁃	  "displayName": "DISPLAYNAME",
+    	⁃	  "password": "PWORD",
+    	⁃	  "tenant": "TENANT"
+    	⁃	}
+    	⁃
+    	⁃	>>
+    	⁃
+    	⁃	export ARM_CLIENT_ID=""
+    	⁃	export ARM_CLIENT_SECRET=""
+    	⁃	export ARM_SUBSCRIPTION_ID=""
+    	⁃	export ARM_TENANT_ID=""
+    	⁃
+    	⁃	mkdir learn-terraform-azure
+    	⁃	cd learn-terraform-azure
+
+Setting up APIM
+===============
+https://learn.microsoft.com/en-us/azure/api-management/quickstart-terraform?tabs=azure-cli
+
+1. Initialize
+    terraform init -upgrade
+2. Create an execution plan (its stored in a file to make sure that the plan you reviewed is the plan that
+                                gets executed)
+    terraform plan -out main.tfplan
+3.  Apply a terraform execution plan
+    terraform apply main.tfplan
+4. Verify the results
+    a. resource_group_name=$(terraform output -raw resource_group_name)
+    b. api_management_service_name=$(terraform output -raw api_management_service_name)
+    c. az apim show --resource-group $resource_group_name --name $api_management_service_name
+5. Clean up resources
+    a. terraform plan -destroy -out main.destroy.tfplan
+    b. terraform apply main.destroy.tfplan
+
+Login to subscription
+=====================
+az login
+az account list --output table
+az account set --subscription "<SUBSCRIPTION_ID>
+az account show --output table   # verify
+
+#Calling the service using the subscription key
+curl -H "Ocp-Apim-Subscription-Key: <SUBSCRIPTION_KEY>" \
+     https://apim-smartbuyhub-eastus-01.regional.azure-api.net/todos
