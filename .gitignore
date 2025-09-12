@@ -38,3 +38,4 @@ terraform.rc
 .idea/
 learn-terraform-azure/.idea
 Terraform.rtf
+.DS_Store

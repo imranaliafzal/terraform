@@ -60,6 +60,41 @@ resource "azurerm_api_management_api_operation_policy" "get_todos_policy" {
 <policies>
   <inbound>
     <base />
+    <cors allow-credentials="true">
+      <allowed-origins>
+        <origin>http://localhost:5173</origin>
+      </allowed-origins>
+      <allowed-methods>
+        <method>GET</method><method>POST</method><method>PUT</method><method>DELETE</method><method>OPTIONS</method>
+      </allowed-methods>
+      <allowed-headers>
+        <header>authorization</header><header>content-type</header>
+      </allowed-headers>
+      <expose-headers>
+        <header>content-length</header>
+      </expose-headers>
+    </cors>
+    <validate-azure-ad-token tenant-id="<TENANT_ID>"
+                             failed-validation-httpcode="401"
+                             failed-validation-error-message="Unauthorized."
+                             output-token-variable-name="jwt">
+      <audiences>
+        <audience>api://<API_APP_CLIENT_ID></audience>
+      </audiences>
+      <required-claims>
+        <claim name="scp" match="any">
+          <value>todos.read</value>
+        </claim>
+      </required-claims>
+    </validate-azure-ad-token>
+
+    <!-- Optional: forward user OID and name -->
+    <set-header name="x-user-oid" exists-action="override">
+      <value>@(((Jwt)context.Variables["jwt"]).Claims["oid"].FirstOrDefault())</value>
+    </set-header>
+    <set-header name="x-user-name" exists-action="override">
+      <value>@(((Jwt)context.Variables["jwt"]).Claims["name"].FirstOrDefault())</value>
+    </set-header>
     <!-- choose one of the two approaches below -->
     <!-- A) Use mock-response (prefers examples/schemas if present) -->
     <!-- <mock-response status-code="200" content-type="application/json" /> -->
