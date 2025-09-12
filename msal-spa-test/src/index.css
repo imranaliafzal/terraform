@@ -1,0 +1,26 @@
+/* Force light readable defaults */
+:root {
+  /* If the Vite template added dark-mode auto, disable it: */
+  color-scheme: only light;
+  --fg: #111827;
+  --bg: #ffffff;
+  --panel-bg: #f6f6f6;
+  --panel-fg: #111827;
+  --panel-border: #e5e7eb;
+}
+
+body {
+  color: var(--fg);
+  background: var(--bg);
+}
+
+pre, textarea {
+  background: var(--panel-bg);
+  color: var(--panel-fg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
