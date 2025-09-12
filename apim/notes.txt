@@ -53,3 +53,4 @@ az account show --output table   # verify
 #Calling the service using the subscription key
 curl -H "Ocp-Apim-Subscription-Key: <SUBSCRIPTION_KEY>" \
      https://apim-smartbuyhub-eastus-01.regional.azure-api.net/todos
+

@@ -19,10 +19,10 @@ resource "azurerm_api_management_api" "todos_api" {
   resource_group_name = azurerm_resource_group.rg.name
   api_management_name = azurerm_api_management.apim.name
 
-  revision            = "1"
-  display_name        = "Todos API (mock)"
-  path                = "todos"
-  protocols           = ["https"]
+  revision     = "1"
+  display_name = "Todos API (mock)"
+  path         = "todos"
+  protocols    = ["https"]
 
   # no import - we’ll manage operations manually
 }
@@ -61,7 +61,6 @@ resource "azurerm_api_management_api_operation_policy" "get_todos_policy" {
   <inbound>
     <base />
     <!-- choose one of the two approaches below -->
-
     <!-- A) Use mock-response (prefers examples/schemas if present) -->
     <!-- <mock-response status-code="200" content-type="application/json" /> -->
 
