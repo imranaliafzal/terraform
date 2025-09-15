@@ -39,3 +39,4 @@ terraform.rc
 learn-terraform-azure/.idea
 Terraform.rtf
 .DS_Store
+/scripts/debug.sh
