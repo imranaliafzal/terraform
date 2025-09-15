@@ -13,7 +13,6 @@ resource "azurerm_api_management" "apim" {
   sku_name            = "Developer_1"
 }
 
-# A blank HTTP API
 resource "azurerm_api_management_api" "todos_api" {
   name                = "todos"
   resource_group_name = azurerm_resource_group.rg.name
