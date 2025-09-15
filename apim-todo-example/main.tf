@@ -74,26 +74,12 @@ resource "azurerm_api_management_api_operation_policy" "get_todos_policy" {
         <header>content-length</header>
       </expose-headers>
     </cors>
-    <validate-azure-ad-token tenant-id="e3ad7e9e-4e1e-419a-8da6-398e5bc8da69"
-                             failed-validation-httpcode="401"
-                             failed-validation-error-message="Unauthorized."
-                             output-token-variable-name="jwt">
-      <audiences>
-        <audience>449438c6-50f7-4ff7-b42e-4563c537eaab</audience>
-      </audiences>
-      <required-claims>
-        <claim name="scp" match="any">
-          <value>todos.read</value>
-        </claim>
-      </required-claims>
-    </validate-azure-ad-token>
-    <!-- Optional: forward user OID and name -->
-    <set-header name="x-user-oid" exists-action="override">
-      <value>@(((Jwt)context.Variables["jwt"]).Claims["oid"].FirstOrDefault())</value>
-    </set-header>
-    <set-header name="x-user-name" exists-action="override">
-      <value>@(((Jwt)context.Variables["jwt"]).Claims["name"].FirstOrDefault())</value>
-    </set-header>
+    <validate-jwt header-name="Authorization" require-scheme="Bearer" failed-validation-httpcode="401" clock-skew="300">
+      <openid-config url="https://login.microsoftonline.com/<tennant-id>/v2.0/.well-known/openid-configuration" />
+        <audiences>
+          <audience><API_CLIENT_ID></audience> <!-- or your custom App ID URI -->
+        </audiences>
+    </validate-jwt>
     <!-- choose one of the two approaches below -->
     <!-- A) Use mock-response (prefers examples/schemas if present) -->
     <!-- <mock-response status-code="200" content-type="application/json" /> -->
