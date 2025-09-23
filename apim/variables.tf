@@ -1,51 +1,14 @@
-variable "resource_group_location" {
-  type        = string
-  default     = "eastus"
-  description = "Location for all resources."
-}
-
-variable "resource_group_name_prefix" {
-  type        = string
-  default     = "rg"
-  description = "Prefix of the resource group name that's combined with a random ID so name is unique in your Azure subscription."
-}
-
-variable "publisher_email" {
-  default     = "test@contoso.com"
-  description = "The email address of the owner of the service"
-  type        = string
-  validation {
-    condition     = length(var.publisher_email) > 0
-    error_message = "The publisher_email must contain at least one character."
-  }
-}
-
-variable "publisher_name" {
-  default     = "publisher"
-  description = "The name of the owner of the service"
-  type        = string
-  validation {
-    condition     = length(var.publisher_name) > 0
-    error_message = "The publisher_name must contain at least one character."
-  }
-}
-
-variable "sku_name" {
-  description = "The pricing tier of this API Management service"
-  default     = "BasicV2"
-  type        = string
-  validation {
-    condition     = contains(["Basic", "BasicV2", "Consumption", "Developer", "Premium", "PremiumV2", "Standard", "StandardV2"], var.sku_name)
-    error_message = "The sku must be one of the following: Basic, BasicV2, Consumption, Developer, Premium, PremiumV2, Standard, StandardV2."
-  }
-}
-
-variable "sku_count" {
-  description = "The instance size of this API Management service."
-  default     = 1
-  type        = number
-  validation {
-    condition     = contains([1, 2], var.sku_count)
-    error_message = "The sku_count must be one of the following: 1, 2."
-  }
-}
+# variables.tf
+variable "location"         { default = "eastus2" }
+variable "rg_name"          { default = "rg-gw-apim-imr" }
+variable "vnet_name"        { default = "vnet_eus2_npe" }
+variable "appgw_subnet_cidr"{ default = "10.10.1.0/24" }  # /24 recommended for AppGW v2
+variable "apim_subnet_cidr" { default = "10.10.2.0/26" }  # /26 or larger for APIM
+variable "appgw_subnet_name"{ default = "snet_appgw" }
+variable "apim_subnet_name" { default = "snet_apim" }
+variable "appgw_name"       { default = "agw-eus2-npe" }
+variable "apim_name"        { default = "apim-internal-eus2" } # must be unique globally
+variable "apim_sku"         { default = "Developer_1" }   # or "Premium_1"
+variable "enable_public_access" {default = false}
+# TLS certificate for AppGW (stored in Key Vault). Use key_vault_secret_id here:
+#variable "appgw_cert_secret_id" { description = "Key Vault secret ID for PFX" }
