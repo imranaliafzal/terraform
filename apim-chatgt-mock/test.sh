@@ -1,0 +1,6 @@
+access_token=eyJ0eXAiOiAiSldUIiwgImFsZyI6ICJSUzI1NiIsICJraWQiOiAiMTE4MDc5MDcwOCJ9.eyJhdWQiOiJyZXZlbnVlaW5zaWdodGZpcyIsImlzcyI6InJldmVudWVJbnNpZ2h0IiwianRpIjoiYWVvbGtqamlibGRpb2VhZGxhZ3BncGtvYmhwZmlnZmRhYWNuY2lpZSIsIm5iZiI6MTc1OTgwNzc5MCwic3ViIjoiSU1SQU4uVEVTVCIsImV4cCI6MTc1OTgwODY5MCwiaWF0IjoxNzU5ODA3NzkwLCJyZXZlbnVlaW5zaWdodF9yb2xlIjoiMSIsIkxvZ2luTmFtZSI6IklNUkFOLlRFU1QiLCJBc3NpZ25lZEZpcm1zIjoiIiwiTGFzdE5hbWUiOiJUZXN0IiwiY2xpZW50aWQiOiJmaXMiLCJGaXJzdE5hbWUiOiJJbXJhbiJ9.qd4YkQRj2IJTzR4x1CRI0vxOZGf566BfWwM6m2IW_WQGLCM7_FAo_x09vunTN9Ph17lMxOgedOPz80zdgdD5TrfxL-wQuwOLfxfezNj3UexkPsgUWFAZmKue1oqjP-7gPxwjyQhpqpG7r6RqTZPLWiSy6L-Meis_RDWZ2Qk-CkBwmycPwWpC12RM8m-S5Bhn0_lSZOj1sR_B85qfccm7V3uRVLCHsTUULF4tqubhIqZcEFrZuA5jVVWza0_gD6cwwMhh8ra0gHf3OghFedapOseom7ERo22JLFEyUh2QEZwl3tC_Qz3U9nYAZsa6gYvM3sWBiuvAwCQYof7677GkmQ
+curl -i -v -X POST "https://imran-chatgpt-apim.azure-api.net/chatgpt/v1/chat/completions?debug=true" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $access_token" \
+    -H "Ocp-Apim-Trace: true" \
+    -d '{"messages":[{"role":"user","content":"hello"}]}'
