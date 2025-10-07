@@ -74,31 +74,58 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
   xml_content = <<POLICY
 <policies>
   <inbound>
-    <base />
-    <!-- Pull raw bearer string (no validation yet) -->
-  <set-variable name="rawJwt" value='@{
+        <base />
+        <!-- Pull raw bearer string (no validation yet) -->
+        <set-variable name="rawJwt" value="@{
       var auth = context.Request.Headers.GetValueOrDefault("Authorization", "");
       return auth?.StartsWith("Bearer ") == true ? auth.Substring(7) : auth;
-  }' />
+  }" />
+        <set-variable name="jwtPayloadJson" value="@{
+    var t = (string)context.Variables["rawJwt"];
+    if (string.IsNullOrEmpty(t)) { return ""; }
 
+    var parts = t.Split('.');
+    if (parts.Length < 2) { return ""; }
 
-    <validate-jwt header-name="Authorization"
-                  require-scheme="Bearer"
-                  failed-validation-httpcode="401"
-                  failed-validation-error-message="Unauthorized" output-token-variable-name="jwtToken">
-      <openid-config url="https://login-uat.fisglobal.com/idp/revenueinsight/.well-known/openid-configuration" />
-      <audiences>
-        <audience>revenueinsightfis</audience>
-      </audiences>
-    </validate-jwt>
-    <!-- Place subsequent policies that need parsed claims here -->
+    // base64url -> base64
+    var b64 = parts[1].Replace("-", "+").Replace("_", "/");
+    var mod = b64.Length % 4;
+    if (mod == 2) {b64 += "==";}
+    else if (mod == 3) {b64 += "=";}
+    else if (mod == 1) { return ""; } // invalid length; bail out
+
+    var bytes = System.Convert.FromBase64String(b64);
+    var json = System.Text.Encoding.UTF8.GetString(bytes);
+    return json;
+}" />
+        <set-variable name="clientId" value="@{
+            var s = (string)context.Variables["jwtPayloadJson"];
+            if (string.IsNullOrEmpty(s)) {return "";}
+            return ((string)Newtonsoft.Json.Linq.JObject.Parse(s).SelectToken("clientid"));
+        }" />
+        <set-variable name="aud" value="@{
+            var s = (string)context.Variables["jwtPayloadJson"];
+            if (string.IsNullOrEmpty(s)) {return "";}
+            return (string)Newtonsoft.Json.Linq.JObject.Parse(s).SelectToken("aud");
+        }" />
+        <set-variable name="oidc_config_url" value="@("https://login-uat.fastfly.com/idp/"
+                        + (string)context.Variables["clientId"]
+                        + "/.well-known/openid-configuration")" />
+        <!-- 2) Decode JWT payload (Base64url → JSON) -->
+        <validate-jwt header-name="Authorization" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized" require-scheme="Bearer" output-token-variable-name="jwtToken">
+            <openid-config url="@((string)context.Variables["oidc_config_url"])" />
+            <audiences>
+                <audience>@((string)context.Variables["aud"])</audience>
+            </audiences>
+        </validate-jwt>
+        <!-- Place subsequent policies that need parsed claims here -->
         <set-header name="user-id" exists-action="override">
             <value>@(context.Variables.GetValueOrDefault<Jwt>("jwtToken")?.Claims?.GetValueOrDefault("sub"))</value>
         </set-header>
         <set-header name="user-roles" exists-action="override">
-            <value>@(context.Variables.GetValueOrDefault<Jwt>("jwtToken")?.Claims?.GetValueOrDefault("roles"))</value>
+            <value>@(context.Variables.GetValueOrDefault<Jwt>("jwtToken")?.Claims?.GetValueOrDefault("revenueinsight_role"))</value>
         </set-header>
-  </inbound>
+    </inbound>
   <backend>
     <base />
   </backend>
