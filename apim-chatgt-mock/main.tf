@@ -73,8 +73,47 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
 
   xml_content = <<POLICY
 <policies>
-  <inbound>
+    <inbound>
         <base />
+        <!-- Decide: do we need to look at cookie? -->
+        <choose>
+            <when condition="@{
+          var auth = context.Request.Headers.GetValueOrDefault("Authorization", "") ?? "";
+          if (auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) {
+              var t = auth.Substring(7).Trim();
+              return string.IsNullOrEmpty(t); // if header is empty return true --> use cookie. return false if the header has token
+          }
+          return true; // Authorization header not found use cookie
+      }">
+                <!-- We are inside the WHEN body (only runs if we need cookie) -->
+                <!-- Parse rj_session cookie (raw token) -->
+                <set-variable name="rj_session_token" value="@{
+            var cookieHeader = context.Request.Headers.GetValueOrDefault("Cookie", "") ?? "";
+            if (string.IsNullOrEmpty(cookieHeader)) {return "";}
+            string token = "";
+            var parts = cookieHeader.Split(new[]{';'}, System.StringSplitOptions.RemoveEmptyEntries);
+            for (int i = 0; i < parts.Length; i++) {
+                var kv = parts[i].Split(new[]{'='}, 2);
+                var k = kv[0].Trim();
+                var v = kv.Length > 1 ? kv[1] : "";
+                if (string.Equals(k, "rj_session", System.StringComparison.OrdinalIgnoreCase)) {
+                    token = System.Net.WebUtility.UrlDecode(v ?? "").Trim();
+                    break;
+                }
+            }
+            return token;
+        }" />
+                <!-- If rj_session_token has value then use it and set Authorization header with it -->
+                <choose>
+                    <when condition="@(!string.IsNullOrEmpty((string)context.Variables["rt_session_token"]))">
+                        <set-header name="Authorization" exists-action="override">
+                            <value>@("Bearer " + (string)context.Variables["rt_session_token"])</value>
+                        </set-header>
+                    </when>
+                </choose>
+            </when>
+        </choose>
+        <!-- Process the Authorization Header -->
         <!-- Pull raw bearer string (no validation yet) -->
         <set-variable name="rawJwt" value="@{
       var auth = context.Request.Headers.GetValueOrDefault("Authorization", "");
@@ -108,10 +147,9 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
             if (string.IsNullOrEmpty(s)) {return "";}
             return (string)Newtonsoft.Json.Linq.JObject.Parse(s).SelectToken("aud");
         }" />
-        <set-variable name="oidc_config_url" value="@("https://login-uat.fastfly.com/idp/"
+        <set-variable name="oidc_config_url" value="@("https://login.firefly.com/idp/"
                         + (string)context.Variables["clientId"]
                         + "/.well-known/openid-configuration")" />
-        <!-- 2) Decode JWT payload (Base64url → JSON) -->
         <validate-jwt header-name="Authorization" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized" require-scheme="Bearer" output-token-variable-name="jwtToken">
             <openid-config url="@((string)context.Variables["oidc_config_url"])" />
             <audiences>
@@ -119,26 +157,19 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
             </audiences>
         </validate-jwt>
         <!-- Place subsequent policies that need parsed claims here -->
-        <set-header name="user-id" exists-action="override">
-            <value>@(context.Variables.GetValueOrDefault<Jwt>("jwtToken")?.Claims?.GetValueOrDefault("sub"))</value>
-        </set-header>
-        <set-header name="user-roles" exists-action="override">
-            <value>@(context.Variables.GetValueOrDefault<Jwt>("jwtToken")?.Claims?.GetValueOrDefault("revenueinsight_role"))</value>
-        </set-header>
     </inbound>
-  <backend>
-    <base />
-  </backend>
-  <outbound>
-    <base />
-  </outbound>
-  <on-error>
-    <base />
-  </on-error>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
 </policies>
 POLICY
 }
-
 
 
 # -----------------------------------------
