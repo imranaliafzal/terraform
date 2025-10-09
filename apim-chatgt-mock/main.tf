@@ -86,8 +86,8 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
           return true; // Authorization header not found use cookie
       }">
                 <!-- We are inside the WHEN body (only runs if we need cookie) -->
-                <!-- Parse rj_session cookie (raw token) -->
-                <set-variable name="rj_session_token" value="@{
+                <!-- Parse rt_session cookie (raw token) -->
+                <set-variable name="rt_session_token" value="@{
             var cookieHeader = context.Request.Headers.GetValueOrDefault("Cookie", "") ?? "";
             if (string.IsNullOrEmpty(cookieHeader)) {return "";}
             string token = "";
@@ -96,14 +96,14 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
                 var kv = parts[i].Split(new[]{'='}, 2);
                 var k = kv[0].Trim();
                 var v = kv.Length > 1 ? kv[1] : "";
-                if (string.Equals(k, "rj_session", System.StringComparison.OrdinalIgnoreCase)) {
+                if (string.Equals(k, "rt_session", System.StringComparison.OrdinalIgnoreCase)) {
                     token = System.Net.WebUtility.UrlDecode(v ?? "").Trim();
                     break;
                 }
             }
             return token;
         }" />
-                <!-- If rj_session_token has value then use it and set Authorization header with it -->
+                <!-- If rt_session_token has value then use it and set Authorization header with it -->
                 <choose>
                     <when condition="@(!string.IsNullOrEmpty((string)context.Variables["rt_session_token"]))">
                         <set-header name="Authorization" exists-action="override">
@@ -166,6 +166,20 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
     </outbound>
     <on-error>
         <base />
+        <!-- Return 401 with the exact validate-jwt error message -->
+        <return-response>
+            <set-status code="401" reason="Unauthorized" />
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/json</value>
+            </set-header>
+            <set-body>@{
+      var msg = context.LastError?.Message ?? "JWT validation failed.";
+      var obj = new Newtonsoft.Json.Linq.JObject();
+      obj["error"] = "invalid_token";
+      obj["error_description"] = msg;
+      return obj.ToString(Newtonsoft.Json.Formatting.None);
+    }</set-body>
+        </return-response>
     </on-error>
 </policies>
 POLICY
