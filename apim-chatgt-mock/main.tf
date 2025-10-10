@@ -119,6 +119,25 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
       var auth = context.Request.Headers.GetValueOrDefault("Authorization", "");
       return auth?.StartsWith("Bearer ") == true ? auth.Substring(7) : auth;
   }" />
+        <!-- if rawJwt is empty return with error -->
+        <choose>
+            <when condition="@(string.IsNullOrEmpty((string)context.Variables["rawJwt"]))">
+                <return-response>
+                    <set-status code="460" reason="TokenNotPresent" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-body>@{
+                                    var json = new Newtonsoft.Json.Linq.JObject(
+                                    new Newtonsoft.Json.Linq.JProperty("statusCode", "460"),
+                                    new Newtonsoft.Json.Linq.JProperty("message", "TokenNotPresent"),
+                                    new Newtonsoft.Json.Linq.JProperty("description", "JWT not present.")
+                                );
+                                    return json.ToString();
+                            }</set-body>
+                </return-response>
+            </when>
+        </choose>
         <set-variable name="jwtPayloadJson" value="@{
     var t = (string)context.Variables["rawJwt"];
     if (string.IsNullOrEmpty(t)) { return ""; }
@@ -137,19 +156,17 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
     var json = System.Text.Encoding.UTF8.GetString(bytes);
     return json;
 }" />
-        <set-variable name="clientId" value="@{
+        <set-variable name="firmName" value="@{
             var s = (string)context.Variables["jwtPayloadJson"];
             if (string.IsNullOrEmpty(s)) {return "";}
-            return ((string)Newtonsoft.Json.Linq.JObject.Parse(s).SelectToken("clientid"));
+            return ((string)Newtonsoft.Json.Linq.JObject.Parse(s).SelectToken("iss"));
         }" />
         <set-variable name="aud" value="@{
             var s = (string)context.Variables["jwtPayloadJson"];
             if (string.IsNullOrEmpty(s)) {return "";}
             return (string)Newtonsoft.Json.Linq.JObject.Parse(s).SelectToken("aud");
         }" />
-        <set-variable name="oidc_config_url" value="@("https://login.firefly.com/idp/"
-                        + (string)context.Variables["clientId"]
-                        + "/.well-known/openid-configuration")" />
+        <set-variable name="oidc_config_url" value="@("https://login.firefly.com/idp/"+ (string)context.Variables["firmName"]+ "/.well-known/openid-configuration")" />
         <validate-jwt header-name="Authorization" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized" require-scheme="Bearer" output-token-variable-name="jwtToken">
             <openid-config url="@((string)context.Variables["oidc_config_url"])" />
             <audiences>
@@ -166,20 +183,59 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
     </outbound>
     <on-error>
         <base />
-        <!-- Return 401 with the exact validate-jwt error message -->
-        <return-response>
-            <set-status code="401" reason="Unauthorized" />
-            <set-header name="Content-Type" exists-action="override">
-                <value>application/json</value>
-            </set-header>
-            <set-body>@{
-      var msg = context.LastError?.Message ?? "JWT validation failed.";
-      var obj = new Newtonsoft.Json.Linq.JObject();
-      obj["error"] = "invalid_token";
-      obj["error_description"] = msg;
-      return obj.ToString(Newtonsoft.Json.Formatting.None);
-    }</set-body>
-        </return-response>
+        <!-- Capture error reason, error message and error source  -->
+        <set-variable name="jwt_error_source" value="@(context.LastError?.Source ?? string.Empty)" />
+        <set-variable name="jwt_error_reason" value="@(context.LastError?.Reason ?? string.Empty)" />
+        <set-variable name="jwt_error_message" value="@(context.LastError?.Message ?? string.Empty)" />
+        <set-variable name="is_jwt" value="@(string.Equals((string)context.Variables["jwt_error_source"], "validate-jwt", StringComparison.OrdinalIgnoreCase))" />
+        <choose>
+            <when condition="@((bool)context.Variables["is_jwt"])">
+                <choose>
+                    <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"],"TokenNotPresent",StringComparison.OrdinalIgnoreCase))">
+                        <set-status code="460" reason="TokenNotPresent" />
+                    </when>
+                    <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"], "TokenInvalidSignature", StringComparison.OrdinalIgnoreCase))">
+                        <set-status code="461" reason="TokenInvalidSignature" />
+                    </when>
+                    <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"],"TokenAudienceNotAllowed",StringComparison.OrdinalIgnoreCase))">
+                        <set-status code="462" reason="TokenAudienceNotAllowed" />
+                    </when>
+                    <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"],"TokenIssuerNotAllowed",StringComparison.OrdinalIgnoreCase))">
+                        <set-status code="463" reason="TokenIssuerNotAllowed" />
+                    </when>
+                    <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"], "TokenExpired", StringComparison.OrdinalIgnoreCase) )">
+                        <set-status code="464" reason="TokenExpired" />
+                    </when>
+                    <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"], "TokenSignatureKeyNotFound", StringComparison.OrdinalIgnoreCase))">
+                        <set-status code="465" reason="TokenSignatureKeyNotFound" />
+                    </when>
+                    <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"], "TokenClaimNotFound", StringComparison.OrdinalIgnoreCase))">
+                        <set-status code="466" reason="TokenClaimNotFound" />
+                    </when>
+                    <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"], "TokenClaimValueNotAllowed", StringComparison.OrdinalIgnoreCase))">
+                        <set-status code="467" reason="TokenClaimValueNotAllowed" />
+                    </when>
+                    <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"], "Invalid JWT.", StringComparison.OrdinalIgnoreCase))">
+                        <set-status code="468" reason="Invalid JWT." />
+                    </when>
+                    <otherwise />
+                </choose>
+                <set-header name="Content-Type" exists-action="override">
+                    <value>application/json</value>
+                </set-header>
+                <set-body>@{
+                                    // Use the response’s current status code
+                                    var code = (int)(context.Response?.StatusCode ?? 0);
+                                    var json = new Newtonsoft.Json.Linq.JObject(
+                                                        new Newtonsoft.Json.Linq.JProperty("statusCode", code),
+                                                        new Newtonsoft.Json.Linq.JProperty("message", (string)context.Variables["jwt_error_reason"]),
+                                                        new Newtonsoft.Json.Linq.JProperty("description", (string)context.Variables["jwt_error_message"])
+                                                    );
+                                    return json.ToString();
+                            }</set-body>
+            </when>
+            <otherwise />
+        </choose>
     </on-error>
 </policies>
 POLICY
