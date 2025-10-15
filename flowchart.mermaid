@@ -1,0 +1,15 @@
+flowchart LR
+  Internet((Public Internet))-->|443/TLS| AGW[App Gateway (WAF v2)\nPublic IP + TLS termination]
+  subgraph Azure VNet
+    direction LR
+    subgraph Subnet-AppGW[Subnet: appgw-snet]
+      AGW --> |HTTPS 443 (re-encrypted) \n Host: api.int.contoso| APIM
+    end
+    subgraph Subnet-APIM[Subnet: apim-snet]
+      APIM[APIM (Internal mode)\nPrivate ILB + Private IP]
+    end
+    DNS[(Private DNS zone\nint.contoso)] --- AGW
+    DNS --- APIM
+  end
+  AGW <-.-> LA[(Log Analytics)]
+  APIM <-.-> LA

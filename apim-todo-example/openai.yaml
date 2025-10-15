@@ -1,0 +1,313 @@
+openapi: 3.0.3
+info:
+  title: Chat Service API
+  version: 1.0.0
+  description: |
+    Minimal OpenAPI for a ChatGPT-like service. Supports:
+      - GET /api/v1/chats: list chats
+      - POST /api/v1/chats: create a chat & get assistant reply
+      - PATCH /api/v1/chats/{chatId}: update a chat (e.g., title, metadata)
+servers:
+  - url: https://api.example.com
+tags:
+  - name: Chats
+    description: Manage chat sessions and messages
+paths:
+  /api/v1/chats:
+    get:
+      tags: [Chats]
+      summary: List chats
+      operationId: listChats
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+          description: Page size
+        - in: query
+          name: pageToken
+          schema: { type: string }
+          description: Opaque token for pagination
+        - in: header
+          name: x-request-id
+          required: false
+          schema: { type: string }
+          description: Correlation ID for tracing
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatListResponse'
+              examples:
+                sample:
+                  value:
+                    items:
+                      - id: "chat_123"
+                        title: "Pricing Q&A"
+                        status: "active"
+                        createdAt: "2025-09-16T14:12:00Z"
+                        updatedAt: "2025-09-16T14:20:00Z"
+                      - id: "chat_124"
+                        title: "Onboarding help"
+                        status: "archived"
+                        createdAt: "2025-09-15T10:02:00Z"
+                        updatedAt: "2025-09-15T10:30:00Z"
+                    nextPageToken: "eyJwYWdlIjoyfQ=="
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    post:
+      tags: [Chats]
+      summary: Create a chat and get an assistant reply
+      operationId: createChat
+      description: |
+        Starts a new chat session (or continues if `chatId` provided) and returns the assistant's reply.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCreateRequest'
+            examples:
+              sample:
+                value:
+                  model: "gpt-4o-mini"
+                  messages:
+                    - role: system
+                      content: "You are a helpful assistant."
+                    - role: user
+                      content: "Summarize the benefits of microservices."
+                  temperature: 0.2
+                  maxTokens: 256
+      responses:
+        '201':
+          description: Created
+          headers:
+            Location:
+              description: URL of the created/updated chat
+              schema: { type: string, format: uri }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCreateResponse'
+              examples:
+                sample:
+                  value:
+                    chat:
+                      id: "chat_125"
+                      title: "Microservices summary"
+                      status: "active"
+                      createdAt: "2025-09-17T11:00:00Z"
+                      updatedAt: "2025-09-17T11:00:01Z"
+                    assistantMessage:
+                      id: "msg_9001"
+                      role: assistant
+                      content: "Microservices let teams deploy independently..."
+                      createdAt: "2025-09-17T11:00:01Z"
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/chats/{chatId}:
+    patch:
+      tags: [Chats]
+      summary: Update a chat (partial)
+      operationId: updateChat
+      parameters:
+        - in: path
+          name: chatId
+          required: true
+          schema: { type: string }
+          description: Chat identifier
+        - in: header
+          name: x-request-id
+          required: false
+          schema: { type: string }
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatUpdateRequest'
+            examples:
+              rename:
+                value:
+                  title: "Architecture brainstorming"
+              archive:
+                value:
+                  status: "archived"
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chat'
+              examples:
+                sample:
+                  value:
+                    id: "chat_125"
+                    title: "Architecture brainstorming"
+                    status: "archived"
+                    createdAt: "2025-09-17T11:00:00Z"
+                    updatedAt: "2025-09-17T11:05:10Z"
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            sample:
+              value: { code: "unauthorized", message: "Invalid token" }
+    BadRequestError:
+      description: The request body or parameters are invalid
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            sample:
+              value: { code: "bad_request", message: "maxTokens must be <= 4096" }
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            sample:
+              value: { code: "not_found", message: "Chat not found" }
+
+  schemas:
+    ChatListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ChatSummary' }
+        nextPageToken:
+          type: string
+      required: [items]
+    ChatSummary:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        status:
+          type: string
+          enum: [active, archived]
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, status, createdAt, updatedAt]
+    Chat:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        status:
+          type: string
+          enum: [active, archived]
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/Message' }
+      required: [id, status, createdAt, updatedAt]
+    Message:
+      type: object
+      properties:
+        id: { type: string }
+        role:
+          type: string
+          enum: [system, user, assistant, tool]
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, role, content, createdAt]
+    MessageInput:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [system, user, assistant]
+        content: { type: string }
+      required: [role, content]
+    ChatCreateRequest:
+      type: object
+      properties:
+        chatId:
+          type: string
+          description: If provided, append to existing chat; otherwise a new chat is created
+        model:
+          type: string
+          example: gpt-4o-mini
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/MessageInput' }
+        temperature:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 2
+          default: 1
+        topP:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          default: 1
+        maxTokens:
+          type: integer
+          minimum: 1
+          maximum: 8192
+        metadata:
+          type: object
+          additionalProperties: true
+      required: [messages, model]
+    ChatCreateResponse:
+      type: object
+      properties:
+        chat:
+          $ref: '#/components/schemas/Chat'
+        assistantMessage:
+          $ref: '#/components/schemas/Message'
+      required: [chat, assistantMessage]
+    ChatUpdateRequest:
+      type: object
+      description: Partial update; only provided fields are changed
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+          enum: [active, archived]
+        metadata:
+          type: object
+          additionalProperties: true
+      additionalProperties: false
+    Error:
+      type: object
+      properties:
+        code: { type: string }
+        message: { type: string }
+      required: [code, message]
