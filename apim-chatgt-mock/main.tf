@@ -13,7 +13,11 @@ terraform {
 }
 
 provider "azurerm" {
-  features {}
+  features {
+    resource_group {
+        prevent_deletion_if_contains_resources = false
+    }
+  }
   subscription_id = var.subscription_id
 }
 
@@ -123,15 +127,15 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
         <choose>
             <when condition="@(string.IsNullOrEmpty((string)context.Variables["rawJwt"]))">
                 <return-response>
-                    <set-status code="460" reason="Unauthorized"/>
+                    <set-status code="460" reason="TokenNotPresent" />
                     <set-header name="Content-Type" exists-action="override">
                         <value>application/json</value>
                     </set-header>
                     <set-body>@{
                                     var json = new Newtonsoft.Json.Linq.JObject(
                                     new Newtonsoft.Json.Linq.JProperty("statusCode", "460"),
-                                    new Newtonsoft.Json.Linq.JProperty("message", "Unauthorized"),
-                                    new Newtonsoft.Json.Linq.JProperty("description", "Unauthorized")
+                                    new Newtonsoft.Json.Linq.JProperty("message", "TokenNotPresent"),
+                                    new Newtonsoft.Json.Linq.JProperty("description", "JWT not present.")
                                 );
                                     return json.ToString();
                             }</set-body>
@@ -192,38 +196,38 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
             <when condition="@((bool)context.Variables["is_jwt"])">
                 <choose>
                     <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"],"TokenNotPresent",StringComparison.OrdinalIgnoreCase))">
-                        <set-status code="460" reason="Unauthorized" />
+                        <set-status code="460" reason="TokenNotPresent" />
                     </when>
                     <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"], "TokenInvalidSignature", StringComparison.OrdinalIgnoreCase))">
-                        <set-status code="461" reason="Unauthorized" />
+                        <set-status code="461" reason="TokenInvalidSignature" />
                     </when>
                     <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"],"TokenAudienceNotAllowed",StringComparison.OrdinalIgnoreCase))">
-                        <set-status code="462" reason="Unauthorized" />
+                        <set-status code="462" reason="TokenAudienceNotAllowed" />
                     </when>
                     <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"],"TokenIssuerNotAllowed",StringComparison.OrdinalIgnoreCase))">
-                        <set-status code="463" reason="Unauthorized" />
+                        <set-status code="463" reason="TokenIssuerNotAllowed" />
                     </when>
                     <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"], "TokenExpired", StringComparison.OrdinalIgnoreCase) )">
-                        <set-status code="464" reason="Unauthorized" />
+                        <set-status code="464" reason="TokenExpired" />
                     </when>
                     <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"], "TokenSignatureKeyNotFound", StringComparison.OrdinalIgnoreCase))">
-                        <set-status code="465" reason="Unauthorized" />
+                        <set-status code="465" reason="TokenSignatureKeyNotFound" />
                     </when>
                     <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"], "TokenClaimNotFound", StringComparison.OrdinalIgnoreCase))">
-                        <set-status code="466" reason="Unauthorized" />
+                        <set-status code="466" reason="TokenClaimNotFound" />
                     </when>
                     <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"], "TokenClaimValueNotAllowed", StringComparison.OrdinalIgnoreCase))">
-                        <set-status code="467" reason="Unauthorized" />
+                        <set-status code="467" reason="TokenClaimValueNotAllowed" />
                     </when>
                     <when condition="@(string.Equals((string)context.Variables["jwt_error_reason"], "Invalid JWT.", StringComparison.OrdinalIgnoreCase))">
-                        <set-status code="468" reason="Unauthorized" />
+                        <set-status code="468" reason="Invalid JWT." />
                     </when>
                     <otherwise />
                 </choose>
-                <!--set-header name="Content-Type" exists-action="override">
+                <set-header name="Content-Type" exists-action="override">
                     <value>application/json</value>
-                </set-header-->
-                <!--set-body>@{
+                </set-header>
+                <set-body>@{
                                     // Use the response’s current status code
                                     var code = (int)(context.Response?.StatusCode ?? 0);
                                     var json = new Newtonsoft.Json.Linq.JObject(
@@ -232,7 +236,7 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
                                                         new Newtonsoft.Json.Linq.JProperty("description", (string)context.Variables["jwt_error_message"])
                                                     );
                                     return json.ToString();
-                            }</set-body-->
+                            }</set-body>
             </when>
             <otherwise />
         </choose>
