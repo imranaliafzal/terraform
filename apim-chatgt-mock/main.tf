@@ -170,7 +170,12 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
             if (string.IsNullOrEmpty(s)) {return "";}
             return (string)Newtonsoft.Json.Linq.JObject.Parse(s).SelectToken("aud");
         }" />
-        <set-variable name="oidc_config_url" value="@("https://login.firefly.com/idp/"+ (string)context.Variables["firmName"]+ "/.well-known/openid-configuration")" />
+        <set-variable name="cloudId" value="@{
+            var s = (string)context.Variables["jwtPayloadJson"];
+            if (string.IsNullOrEmpty(s)) {return "";}
+            return ((string)Newtonsoft.Json.Linq.JObject.Parse(s).SelectToken("cloud_id"));
+        }" />
+        <set-variable name="oidc_config_url" value="@("https://"+(string)context.Variables["cloudId"]+".firefly.com/idp/"+ (string)context.Variables["firmName"]+ "/.well-known/openid-configuration")" />
         <validate-jwt header-name="Authorization" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized" require-scheme="Bearer" output-token-variable-name="jwtToken">
             <openid-config url="@((string)context.Variables["oidc_config_url"])" />
             <audiences>
