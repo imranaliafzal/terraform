@@ -3,4 +3,4 @@ curl -i -v -X POST "https://imran-chatgpt-apim.azure-api.net/chatgpt/v1/chat/com
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer eyJ0eXAiOiAiSldUIiwgImFsZyI6ICJSUzI1NiIsICJraWQiOiAiMTE4MDc5MDcwOCJ9.eyJhdWQiOiJyZXZlbnVlaW5zaWdodF90cmFkZWRlc2siLCJpc3MiOiJyZXZlbnVlSW5zaWdodCIsImp0aSI6ImRiY21jcGNmaWJqcGxmaWRjbWpkZmJobXBmbGFnZ2VlYWRpbWhtY2QiLCJuYmYiOjE3NjA1NTE1NTQsInN1YiI6IklNUkFOLlRFU1QiLCJleHAiOjE3NjA1NTI0NTQsImlhdCI6MTc2MDU1MTU1NCwicmV2ZW51ZWluc2lnaHRfcm9sZSI6ImNsaWVudCIsIkxvZ2luTmFtZSI6IklNUkFOLlRFU1QiLCJMYXN0TmFtZSI6IlRlc3QiLCJGaXJzdE5hbWUiOiJJbXJhbiJ9.l0SaN0NnYGvPSP4J5BluRS7q_mjL70LtSMMguOzd0Fm5hQjobcvJaLh8lvzmjOq9T1OmFqOD-IW72iJYvQbKwBrcAoaDIxs3EgVKBtrwtsa1T71FKNJqOR_k91qy9-qYWPmf-4g9iUWseJqotAllZ7RKK--TLBCv8hbBXGo-31O38JIOeGqV8Wz7pLu1U_NXMF5T6PILPpJvRli27uDZr3352oldY9Mlv1briPHHdJxjcg_SwveC00xFRhtOwpr2TjCCmmYVRDNOd9jcQDMenMugFCSZSz6p8dqkNGmXQBbKItpWLSrmt5f-H4PC38-y04DWWha9dMu9PcM91f5gKQ" \
     -H "Ocp-Apim-Trace: true" \
-    -d '{"messages":[{"role":"user","content":"hello"}]}'
+    -d '{"inputs":{"user_id":"IMRAN.TEST","firm_name":"revenueInsight"}}'

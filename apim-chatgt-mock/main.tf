@@ -90,8 +90,8 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
           return true; // Authorization header not found use cookie
       }">
                 <!-- We are inside the WHEN body (only runs if we need cookie) -->
-                <!-- Parse ri_session cookie (raw token) -->
-                <set-variable name="ri_session_token" value="@{
+                <!-- Parse rt_session cookie (raw token) -->
+                <set-variable name="rt_session_token" value="@{
             var cookieHeader = context.Request.Headers.GetValueOrDefault("Cookie", "") ?? "";
             if (string.IsNullOrEmpty(cookieHeader)) {return "";}
             string token = "";
@@ -100,18 +100,18 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
                 var kv = parts[i].Split(new[]{'='}, 2);
                 var k = kv[0].Trim();
                 var v = kv.Length > 1 ? kv[1] : "";
-                if (string.Equals(k, "ri_session", System.StringComparison.OrdinalIgnoreCase)) {
+                if (string.Equals(k, "rt_session", System.StringComparison.OrdinalIgnoreCase)) {
                     token = System.Net.WebUtility.UrlDecode(v ?? "").Trim();
                     break;
                 }
             }
             return token;
         }" />
-                <!-- If ri_session_token has value then use it and set Authorization header with it -->
+                <!-- If rt_session_token has value then use it and set Authorization header with it -->
                 <choose>
-                    <when condition="@(!string.IsNullOrEmpty((string)context.Variables["ri_session_token"]))">
+                    <when condition="@(!string.IsNullOrEmpty((string)context.Variables["rt_session_token"]))">
                         <set-header name="Authorization" exists-action="override">
-                            <value>@("Bearer " + (string)context.Variables["ri_session_token"])</value>
+                            <value>@("Bearer " + (string)context.Variables["rt_session_token"])</value>
                         </set-header>
                     </when>
                 </choose>
@@ -175,7 +175,12 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
             if (string.IsNullOrEmpty(s)) {return "";}
             return ((string)Newtonsoft.Json.Linq.JObject.Parse(s).SelectToken("cloud_id"));
         }" />
-        <set-variable name="oidc_config_url" value="@("https://"+(string)context.Variables["cloudId"]+".fisglobal.com/idp/"+ (string)context.Variables["firmName"]+ "/.well-known/openid-configuration")" />
+        <set-variable name="userId" value="@{
+            var s = (string)context.Variables["jwtPayloadJson"];
+            if (string.IsNullOrEmpty(s)) {return "";}
+            return ((string)Newtonsoft.Json.Linq.JObject.Parse(s).SelectToken("LoginName"));
+        }" />
+        <set-variable name="oidc_config_url" value="@("https://"+(string)context.Variables["cloudId"]+".firefly.com/idp/"+ (string)context.Variables["firmName"]+ "/.well-known/openid-configuration")" />
         <validate-jwt header-name="Authorization" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized" require-scheme="Bearer" output-token-variable-name="jwtToken">
             <openid-config url="@((string)context.Variables["oidc_config_url"])" />
             <audiences>
@@ -183,6 +188,100 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
             </audiences>
         </validate-jwt>
         <!-- Place subsequent policies that need parsed claims here -->
+        <!-- Ensure request body is JSON -->
+        <choose>
+            <when condition="@(!context.Request.Headers.TryGetValue("Content-Type", out var ct) || !ct.Contains("application/json"))">
+                <return-response>
+                    <set-status code="400" reason="Bad Request" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-body>@{
+                                    var json = new Newtonsoft.Json.Linq.JObject(
+                                    new Newtonsoft.Json.Linq.JProperty("statusCode", "400"),
+                                    new Newtonsoft.Json.Linq.JProperty("message", "Bad Request"),
+                                    new Newtonsoft.Json.Linq.JProperty("description", "Content-Type must be application/json.")
+                                );
+                                    return json.ToString();
+                        }</set-body>
+                </return-response>
+            </when>
+        </choose>
+        <!-- Read and preserve the body for the backend -->
+        <set-variable name="req_body" value="@(context.Request.Body.As<string>(preserveContent: true))" />
+        <!-- Parse JSON safely and extract fields (invalid JSON => empty) -->
+        <set-variable name="body_userId" value="@{
+                var s = (string)context.Variables["req_body"] ?? string.Empty;
+                try {
+                    var j = Newtonsoft.Json.Linq.JObject.Parse(s);
+                    return (string)j.SelectToken("inputs.user_id") ?? string.Empty;
+                } catch { return string.Empty; }
+            }" />
+        <set-variable name="body_firmName" value="@{
+                var s = (string)context.Variables["req_body"] ?? string.Empty;
+                try {
+                    var j = Newtonsoft.Json.Linq.JObject.Parse(s);
+                    return (string)j.SelectToken("inputs.firm_name") ?? string.Empty;
+                } catch { return string.Empty; }
+            }" />
+        <!-- If JSON was invalid or fields are missing/blank -->
+        <choose>
+            <when condition="@(
+                string.IsNullOrWhiteSpace((string)context.Variables["body_userId"]) ||
+                string.IsNullOrWhiteSpace((string)context.Variables["body_firmName"])
+                )">
+                <return-response>
+                    <set-status code="400" reason="Bad Request" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-body>@{
+                                    var json = new Newtonsoft.Json.Linq.JObject(
+                                    new Newtonsoft.Json.Linq.JProperty("statusCode", "400"),
+                                    new Newtonsoft.Json.Linq.JProperty("message", "Bad Request"),
+                                    new Newtonsoft.Json.Linq.JProperty("description", "Missing fields")
+                                );
+                                    return json.ToString();
+                        }</set-body>
+                </return-response>
+            </when>
+        </choose>
+        <!-- Compare (user_id exact, firm_name case-insensitive & trimmed) -->
+        <set-variable name="user_match" value="@{
+                var a = ((string)context.Variables["body_userId"] ?? string.Empty).Trim();
+                var b = ((string)context.Variables["userId"]  ?? string.Empty).Trim();
+                return string.Equals(a, b, System.StringComparison.Ordinal);
+            }" />
+        <set-variable name="firm_match" value="@{
+                var a = ((string)context.Variables["body_firmName"] ?? string.Empty).Trim();
+                var b = ((string)context.Variables["firmName"]  ?? string.Empty).Trim();
+                return string.Equals(a, b, System.StringComparison.OrdinalIgnoreCase);
+            }" />
+        <!-- Mismatch => 403 Forbidden with details (do NOT leak full JWT values) -->
+        <choose>
+            <when condition="@(!((bool)context.Variables["user_match"]) || !((bool)context.Variables["firm_match"]))">
+                <return-response>
+                    <set-status code="403" reason="Forbidden" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-body>@{
+                        // Return only which field mismatched, not actual values
+                        bool um = (bool)context.Variables["user_match"];
+                        bool fm = (bool)context.Variables["firm_match"];
+                        var problems = new System.Collections.Generic.List<string>();
+                        if (!um) {problems.Add("user_id");}
+                        if (!fm) {problems.Add("firm_name");}
+                        var msg = new {
+                            error = "claim_mismatch",
+                            message = "Request body does not match JWT claims.",
+                            fields = problems
+                        };
+                    return Newtonsoft.Json.JsonConvert.SerializeObject(msg);
+                    }</set-body>
+                </return-response>
+            </when>
+        </choose>
     </inbound>
     <backend>
         <base />
