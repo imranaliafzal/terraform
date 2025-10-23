@@ -1,0 +1,17 @@
+[req]
+distinguished_name = dn
+req_extensions     = v3_req
+prompt             = no
+
+[dn]
+CN = imranaliafzal.duckdns.org
+O  = Imran Labs
+C  = US
+
+[v3_req]
+keyUsage         = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName   = @alt_names
+
+[alt_names]
+DNS.1 = imranaliafzal.duckdns.org

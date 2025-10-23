@@ -90,8 +90,8 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
           return true; // Authorization header not found use cookie
       }">
                 <!-- We are inside the WHEN body (only runs if we need cookie) -->
-                <!-- Parse rt_session cookie (raw token) -->
-                <set-variable name="rt_session_token" value="@{
+                <!-- Parse ri_session cookie (raw token) -->
+                <set-variable name="ri_session_token" value="@{
             var cookieHeader = context.Request.Headers.GetValueOrDefault("Cookie", "") ?? "";
             if (string.IsNullOrEmpty(cookieHeader)) {return "";}
             string token = "";
@@ -100,18 +100,18 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
                 var kv = parts[i].Split(new[]{'='}, 2);
                 var k = kv[0].Trim();
                 var v = kv.Length > 1 ? kv[1] : "";
-                if (string.Equals(k, "rt_session", System.StringComparison.OrdinalIgnoreCase)) {
+                if (string.Equals(k, "ri_session", System.StringComparison.OrdinalIgnoreCase)) {
                     token = System.Net.WebUtility.UrlDecode(v ?? "").Trim();
                     break;
                 }
             }
             return token;
         }" />
-                <!-- If rt_session_token has value then use it and set Authorization header with it -->
+                <!-- If ri_session_token has value then use it and set Authorization header with it -->
                 <choose>
-                    <when condition="@(!string.IsNullOrEmpty((string)context.Variables["rt_session_token"]))">
+                    <when condition="@(!string.IsNullOrEmpty((string)context.Variables["ri_session_token"]))">
                         <set-header name="Authorization" exists-action="override">
-                            <value>@("Bearer " + (string)context.Variables["rt_session_token"])</value>
+                            <value>@("Bearer " + (string)context.Variables["ri_session_token"])</value>
                         </set-header>
                     </when>
                 </choose>
@@ -175,7 +175,7 @@ resource "azurerm_api_management_api_policy" "chatgpt_api_policy" {
             if (string.IsNullOrEmpty(s)) {return "";}
             return ((string)Newtonsoft.Json.Linq.JObject.Parse(s).SelectToken("cloud_id"));
         }" />
-        <set-variable name="oidc_config_url" value="@("https://"+(string)context.Variables["cloudId"]+".firefly.com/idp/"+ (string)context.Variables["firmName"]+ "/.well-known/openid-configuration")" />
+        <set-variable name="oidc_config_url" value="@("https://"+(string)context.Variables["cloudId"]+".fisglobal.com/idp/"+ (string)context.Variables["firmName"]+ "/.well-known/openid-configuration")" />
         <validate-jwt header-name="Authorization" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized" require-scheme="Bearer" output-token-variable-name="jwtToken">
             <openid-config url="@((string)context.Variables["oidc_config_url"])" />
             <audiences>
